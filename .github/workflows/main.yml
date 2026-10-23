@@ -47,11 +47,21 @@ jobs:
           from pathlib import Path
           p = Path("app/build.gradle.kts")
           s = p.read_text()
+          marker = "    compileSdk = 35"
+          if marker in s and "sourceCompatibility = JavaVersion.VERSION_17" not in s:
+              s = s.replace(
+                  marker,
+                  marker + """
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }"""
+              )
           s = s.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17")
           s = s.replace('jvmTarget = "1.8"', 'jvmTarget = "17"')
           s = s.replace('jvmTarget = "8"', 'jvmTarget = "17"')
           p.write_text(s)
-          print(s)
+          print("Java and Kotlin targets updated.")
           PY
 
       - name: Build debug APK
