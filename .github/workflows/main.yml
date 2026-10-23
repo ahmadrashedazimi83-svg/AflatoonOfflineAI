@@ -46,10 +46,9 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
-          source = Path(
-              "app/src/main/java/com/aflatoon/offlineai/MainActivity.kt"
-          )
+          source = Path("app/src/main/java/com/aflatoon/offlineai/MainActivity.kt")
           code = source.read_text(encoding="utf-8")
 
           code = code.replace(
@@ -62,14 +61,23 @@ jobs:
               "class MainActivity : ComponentActivity(),"
           )
 
+          code = re.sub(
+              r"override fun onRequestPermissionsResult\(requestCode: Int, permissions: Array<out String>, grantResults: IntArray\)",
+              "override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray)",
+              code
+          )
+
+          if "import androidx.activity.ComponentActivity" not in code:
+              raise SystemExit("ERROR: ComponentActivity import was not applied.")
+
           if "class MainActivity : ComponentActivity()," not in code:
-              raise SystemExit(
-                  "ERROR: MainActivity class was not patched. "
-                  "Check its class declaration."
-              )
+              raise SystemExit("ERROR: MainActivity declaration was not fixed.")
+
+          if "permissions: Array<out String>" in code:
+              raise SystemExit("ERROR: Permission callback parameter type was not fixed.")
 
           source.write_text(code, encoding="utf-8")
-          print("MainActivity fixed successfully.")
+          print("MainActivity and permission callback fixed.")
 
           gradle_file = Path("app/build.gradle.kts")
           gradle = gradle_file.read_text(encoding="utf-8")
@@ -90,6 +98,7 @@ jobs:
           )
 
           android_marker = "android {"
+
           if android_marker not in gradle:
               raise SystemExit("ERROR: Android configuration not found.")
 
@@ -105,7 +114,7 @@ jobs:
               )
 
           gradle_file.write_text(gradle, encoding="utf-8")
-          print("Java JVM target fixed successfully.")
+          print("Java JVM target fixed.")
           PY
 
       - name: Build debug APK
