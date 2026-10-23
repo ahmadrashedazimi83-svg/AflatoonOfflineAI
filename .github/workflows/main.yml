@@ -1,4 +1,3 @@
-
 name: Build Aflatoon APK
 
 on:
@@ -14,6 +13,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout project
         uses: actions/checkout@v4
@@ -22,46 +22,90 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
-          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: "8.9"
 
       - name: Extract project ZIP
         run: |
           unzip -o AflatoonOfflineAI_Source.zip -d extracted
           test -f extracted/AflatoonOfflineAI/settings.gradle.kts
           test -f extracted/AflatoonOfflineAI/app/build.gradle.kts
+          test -f extracted/AflatoonOfflineAI/app/src/main/java/com/aflatoon/offlineai/MainActivity.kt
 
-      - name: Fix Java and Kotlin JVM targets
+      - name: Fix Android activity and JVM targets
         working-directory: extracted/AflatoonOfflineAI
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path("app/build.gradle.kts")
-          s = p.read_text()
-          marker = "    compileSdk = 35"
-          if marker in s and "sourceCompatibility = JavaVersion.VERSION_17" not in s:
-              s = s.replace(
-                  marker,
-                  marker + """
+
+          source = Path(
+              "app/src/main/java/com/aflatoon/offlineai/MainActivity.kt"
+          )
+          code = source.read_text(encoding="utf-8")
+
+          code = code.replace(
+              "import android.app.Activity",
+              "import androidx.activity.ComponentActivity"
+          )
+
+          code = code.replace(
+              "class MainActivity : Activity(),",
+              "class MainActivity : ComponentActivity(),"
+          )
+
+          if "class MainActivity : ComponentActivity()," not in code:
+              raise SystemExit(
+                  "ERROR: MainActivity class was not patched. "
+                  "Check its class declaration."
+              )
+
+          source.write_text(code, encoding="utf-8")
+          print("MainActivity fixed successfully.")
+
+          gradle_file = Path("app/build.gradle.kts")
+          gradle = gradle_file.read_text(encoding="utf-8")
+
+          gradle = gradle.replace(
+              "JavaVersion.VERSION_1_8",
+              "JavaVersion.VERSION_17"
+          )
+
+          gradle = gradle.replace(
+              'jvmTarget = "1.8"',
+              'jvmTarget = "17"'
+          )
+
+          gradle = gradle.replace(
+              'jvmTarget = "8"',
+              'jvmTarget = "17"'
+          )
+
+          android_marker = "android {"
+          if android_marker not in gradle:
+              raise SystemExit("ERROR: Android configuration not found.")
+
+          if "sourceCompatibility = JavaVersion.VERSION_17" not in gradle:
+              gradle = gradle.replace(
+                  android_marker,
+                  """android {
               compileOptions {
                   sourceCompatibility = JavaVersion.VERSION_17
                   targetCompatibility = JavaVersion.VERSION_17
-              }"""
+              }""",
+                  1
               )
-          s = s.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17")
-          s = s.replace('jvmTarget = "1.8"', 'jvmTarget = "17"')
-          s = s.replace('jvmTarget = "8"', 'jvmTarget = "17"')
-          p.write_text(s)
-          print("Java and Kotlin targets updated.")
+
+          gradle_file.write_text(gradle, encoding="utf-8")
+          print("Java JVM target fixed successfully.")
           PY
 
       - name: Build debug APK
