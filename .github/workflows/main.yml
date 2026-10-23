@@ -1,8 +1,7 @@
+name: Build Aflatoon APK
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -11,7 +10,6 @@
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout project
         uses: actions/checkout@v4
@@ -22,17 +20,23 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK packages
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
-
       - name: Build debug APK
-        run: gradle --no-daemon :app:assembleDebug
+        run: |
+          if [ -f ./gradlew ]; then
+            chmod +x ./gradlew
+            ./gradlew --no-daemon :app:assembleDebug
+          else
+            echo 'ERROR: Gradle wrapper gradlew is missing from the repository.'
+            exit 1
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -40,4 +44,3 @@ jobs:
           name: Aflatoon-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-          
